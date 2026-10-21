@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IG Pulse — Unfollow & Re-follow Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; font-weight: 600; }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 max-w-4xl mx-auto">
+
+  <!-- Header -->
+  <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+    <div>
+      <h1 class="text-2xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
+        IG Pulse Tracker
+      </h1>
+      <p class="text-sm text-slate-400 mt-1">
+        100% Local &bull; Tracks Non-Followers, Unfollowers &amp; Silent Re-follows
+      </p>
+    </div>
+    <div class="flex gap-2">
+      <button id="demoBtn" class="px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
+        Load Demo Data
+      </button>
+      <button id="clearBtn" class="px-3 py-2 text-xs font-medium bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 rounded-lg border border-rose-800/50 transition">
+        Clear Saved History
+      </button>
+    </div>
+  </header>
+
+  <!-- Upload Box -->
+  <section class="my-6">
+    <label for="fileInput" class="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-700 hover:border-sky-400 rounded-xl cursor-pointer bg-slate-900/60 transition">
+      <div class="text-center">
+        <p class="text-base font-medium text-slate-200">
+          Drop your Instagram Export <span class="text-sky-400">.zip</span> (or <span class="text-sky-400">followers_1.json</span> + <span class="text-sky-400">following.json</span>)
+        </p>
+        <p class="text-xs text-slate-400 mt-1" id="snapshotStatus">
+          No previous snapshot saved yet. First upload sets your baseline + shows recent follow timestamps.
+        </p>
+      </div>
+      <input id="fileInput" type="file" multiple accept=".zip,.json" class="hidden" />
+    </label>
+  </section>
+
+  <!-- Summary Cards -->
+  <section id="statsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 hidden">
+    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+      <p class="text-xs text-slate-400">Don't Follow Back</p>
+      <p id="statNonFollowers" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+      <p class="text-xs text-slate-400">Re-followed (Silent)</p>
+      <p id="statRefollowed" class="text-2xl font-bold text-purple-400 mt-1">0</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+      <p class="text-xs text-slate-400">Unfollowed Since Last</p>
+      <p id="statUnfollowed" class="text-2xl font-bold text-rose-400 mt-1">0</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
+      <p class="text-xs text-slate-400">New Followers</p>
+      <p id="statNewFollowers" class="text-2xl font-bold text-emerald-400 mt-1">0</p>
+    </div>
+  </section>
+
+  <!-- Navigation Tabs & Search -->
+  <section id="mainContent" class="hidden">
+    <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 mb-4">
+      <nav class="flex gap-4 overflow-x-auto text-sm text-slate-400">
+        <button data-tab="nonFollowers" class="tab-btn pb-3 tab-active whitespace-nowrap">
+          Don't Follow Back
+        </button>
+        <button data-tab="refollows" class="tab-btn pb-3 whitespace-nowrap">
+          Re-followed &amp; Recent Timestamps
+        </button>
+        <button data-tab="unfollowed" class="tab-btn pb-3 whitespace-nowrap">
+          Recent Unfollowers
+        </button>
+        <button data-tab="newFollowers" class="tab-btn pb-3 whitespace-nowrap">
+          New Followers
+        </button>
+      </nav>
+      <input id="searchInput" type="text" placeholder="Search username..." class="px-3 py-1.5 mb-2 text-sm bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-400" />
+    </div>
+
+    <!-- Info Banner per Tab -->
+    <div id="tabBanner" class="mb-4 p-3 rounded-lg bg-slate-900/90 border border-slate-800 text-xs text-slate-300"></div>
+
+    <!-- User List Container -->
+    <div id="userList" class="space-y-2"></div>
+  </section>
+
+  <script>
+    const STORAGE_KEY = 'ig_pulse_previous_snapshot_v1';
+    let currentTab = 'nonFollowers';
+    let analysisResults = {
+      nonFollowers: [],
+      refollowed: [],
+      recentFollowersAll: [],
+      unfollowed: [],
+      newFollowers: []
+    };
+
+    const fileInput = document.getElementById('fileInput');
+    const snapshotStatus = document.getElementById('snapshotStatus');
+    const statsGrid = document.getElementById('statsGrid');
+    const mainContent = document.getElementById('mainContent');
+    const userList = document.getElementById('userList');
+    const tabBanner = document.getElementById('tabBanner');
+    const searchInput = document.getElementById('searchInput');
+
+    function updateSnapshotBanner() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const dateStr = new Date(parsed.savedAt).toLocaleString();
+        snapshotStatus.innerHTML = `Baseline saved from <strong class="text-sky-400">${dateStr}</strong> (${Object.keys(parsed.followers).length} followers). Upload a new export to compare!`;
+      } else {
+        snapshotStatus.textContent = 'No previous snapshot saved yet. First upload sets your baseline + shows recent follow timestamps.';
+      }
+    }
+    updateSnapshotBanner();
+
+    // Parse Instagram JSON structures across 2024-2026 formats
+    function extractEntries(jsonData) {
+      let rawList = [];
+      if (Array.isArray(jsonData)) {
+        rawList = jsonData;
+      } else if (jsonData.relationships_following) {
+        rawList = jsonData.relationships_following;
+      } else if (jsonData.relationships_followers) {
+        rawList = jsonData.relationships_followers;
+      } else {
+        const firstArray = Object.values(jsonData).find(v => Array.isArray(v));
+        if (firstArray) rawList = firstArray;
+      }
+
+      const map = {};
+      for (const item of rawList) {
+        const sld = (item.string_list_data && item.string_list_data[0]) || {};
+        let username = sld.value || item.title || '';
+        if (!username && sld.href) {
+          username = sld.href.replace(/\/$/, '').split('/').pop();
+        }
+        username = username.trim().toLowerCase();
+        if (username) {
+          map[username] = {
+            username,
+            timestamp: sld.timestamp || 0,
+            href: sld.href || `https://www.instagram.com/${username}/`
+          };
+        }
+      }
+      return map;
+    }
+
+    async function handleFiles(files) {
+      let followersMap = {};
+      let followingMap = {};
+
+      for (const file of files) {
+        if (file.name.endsWith('.zip')) {
+          const zip = await JSZip.loadAsync(file);
+          const zipFiles = Object.keys(zip.files);
+
+          for (const path of zipFiles) {
+            const lower = path.toLowerCase();
+            if (lower.endsWith('.json') && lower.includes('followers_and_following/')) {
+              const fileName = lower.split('/').pop();
+              if (fileName.startsWith('followers')) {
+                const text = await zip.files[path].async('string');
+                Object.assign(followersMap, extractEntries(JSON.parse(text)));
+              } else if (fileName === 'following.json') {
+                const text = await zip.files[path].async('string');
+                Object.assign(followingMap, extractEntries(JSON.parse(text)));
+              }
+            }
+          }
+        } else if (file.name.endsWith('.json')) {
+          const text = await file.text();
+          const data = JSON.parse(text);
+          const lower = file.name.toLowerCase();
+          if (lower.includes('following') || data.relationships_following) {
+            Object.assign(followingMap, extractEntries(data));
+          } else {
+            Object.assign(followersMap, extractEntries(data));
+          }
+        }
+      }
+
+      if (Object.keys(followersMap).length === 0 && Object.keys(followingMap).length === 0) {
+        alert('Could not find followers_1.json or following.json inside the uploaded file(s). Make sure you exported in JSON format!');
+        return;
+      }
+
+      runComparison(followersMap, followingMap);
+    }
+
+    function runComparison(followersMap, followingMap) {
+      const prevRaw = localStorage.getItem(STORAGE_KEY);
+      const prevSnapshot = prevRaw ? JSON.parse(prevRaw) : null;
+
+      // 1. Who doesn't follow back
+      const nonFollowers = Object.values(followingMap)
+        .filter(u => !followersMap[u.username])
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      // 2. All current followers sorted by newest timestamp first
+      const recentFollowersAll = Object.values(followersMap)
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      const refollowed = [];
+      const unfollowed = [];
+      const newFollowers = [];
+
+      if (prevSnapshot && prevSnapshot.followers) {
+        const oldFollowers = prevSnapshot.followers;
+
+        // Check for Unfollowers (in old, not in current)
+        for (const [uname, oldData] of Object.entries(oldFollowers)) {
+          if (!followersMap[uname]) {
+            unfollowed.push({
+              ...oldData,
+              note: `Followed you on ${formatDate(oldData.timestamp)} • Unfollowed since last scan`
+            });
+          }
+        }
+
+        // Check for New Followers vs Silent Re-followers
+        for (const [uname, currData] of Object.entries(followersMap)) {
+          const oldData = oldFollowers[uname];
+          if (!oldData) {
+            newFollowers.push(currData);
+          } else if (currData.timestamp > oldData.timestamp) {
+            // SAME follower, NEWER timestamp = Unfollowed and Followed Back!
+            refollowed.push({
+              ...currData,
+              oldTimestamp: oldData.timestamp,
+              isCaughtRefollow: true
+            });
+          }
+        }
+      }
+
+      // Sort diffs
+      refollowed.sort((a, b) => b.timestamp - a.timestamp);
+      newFollowers.sort((a, b) => b.timestamp - a.timestamp);
+
+      analysisResults = {
+        nonFollowers,
+        refollowed,
+        recentFollowersAll,
+        unfollowed,
+        newFollowers
+      };
+
+      // Save new snapshot
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        savedAt: Date.now(),
+        followers: followersMap,
+        following: followingMap
+      }));
+      updateSnapshotBanner();
+
+      // Update UI Counters
+      document.getElementById('statNonFollowers').textContent = nonFollowers.length;
+      document.getElementById('statRefollowed').textContent = refollowed.length;
+      document.getElementById('statUnfollowed').textContent = unfollowed.length;
+      document.getElementById('statNewFollowers').textContent = newFollowers.length;
+
+      statsGrid.classList.remove('hidden');
+      mainContent.classList.remove('hidden');
+      renderList();
+    }
+
+    function formatDate(unixSeconds) {
+      if (!unixSeconds) return 'Unknown date';
+      return new Date(unixSeconds * 1000).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+      });
+    }
+
+    function renderList() {
+      const query = searchInput.value.trim().toLowerCase();
+      userList.innerHTML = '';
+
+      let items = [];
+      if (currentTab === 'nonFollowers') {
+        tabBanner.innerHTML = `Accounts you follow that do not follow you back. Sorted by who you followed most recently.`;
+        items = analysisResults.nonFollowers;
+      } else if (currentTab === 'refollows') {
+        tabBanner.innerHTML = `<strong class="text-purple-400">Silent Re-follow Detector:</strong> Anyone caught unfollowing &amp; re-following between snapshots is highlighted in purple at the top. Below that are all your followers sorted by their most recent follow timestamp—if an old mutual has a brand-new date here, they unfollowed and re-followed you on that date.`;
+        const caughtSet = new Set(analysisResults.refollowed.map(u => u.username));
+        const remainingRecent = analysisResults.recentFollowersAll.filter(u => !caughtSet.has(u.username));
+        items = [...analysisResults.refollowed, ...remainingRecent];
+      } else if (currentTab === 'unfollowed') {
+        tabBanner.innerHTML = `Accounts that were following you in your previous snapshot but are missing now.`;
+        items = analysisResults.unfollowed;
+      } else if (currentTab === 'newFollowers') {
+        tabBanner.innerHTML = `Brand-new followers since your previous saved snapshot.`;
+        items = analysisResults.newFollowers;
+      }
+
+      const filtered = items.filter(item => item.username.includes(query));
+
+      if (filtered.length === 0) {
+        userList.innerHTML = `<div class="p-8 text-center text-slate-500 text-sm">No accounts found in this category.</div>`;
+        return;
+      }
+
+      for (const user of filtered) {
+        const row = document.createElement('div');
+        const isRefollow = user.isCaughtRefollow;
+        row.className = `flex items-center justify-between p-3.5 rounded-xl border ${
+          isRefollow ? 'bg-purple-950/30 border-purple-700/60' : 'bg-slate-900/70 border-slate-800'
+        }`;
+
+        let subtext = '';
+        if (isRefollow) {
+          subtext = `<span class="text-purple-300 font-medium">Caught Re-follow!</span> Old follow: ${formatDate(user.oldTimestamp)} &rarr; New follow: ${formatDate(user.timestamp)}`;
+        } else if (user.note) {
+          subtext = user.note;
+        } else if (currentTab === 'nonFollowers') {
+          subtext = `You followed on ${formatDate(user.timestamp)}`;
+        } else {
+          subtext = `Followed you on ${formatDate(user.timestamp)}`;
+        }
+
+        row.innerHTML = `
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="font-semibold text-slate-100">@${user.username}</span>
+              ${isRefollow ? '<span class="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold bg-purple-600 text-white rounded-full">Re-followed</span>' : ''}
+            </div>
+            <p class="text-xs text-slate-400 mt-0.5">${subtext}</p>
+          </div>
+          <a href="${user.href}" target="_blank" rel="noopener noreferrer"
+             class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-200 rounded-lg transition">
+            View Profile &nearr;
+          </a>
+        `;
+        userList.appendChild(row);
+      }
+    }
+
+    // Event Listeners
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length) handleFiles(e.target.files);
+    });
+
+    searchInput.addEventListener('input', renderList);
+
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('tab-active'));
+        btn.classList.add('tab-active');
+        currentTab = btn.dataset.tab;
+        renderList();
+      });
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      localStorage.removeItem(STORAGE_KEY);
+      updateSnapshotBanner();
+      alert('Saved baseline history cleared.');
+    });
+
+    // Demo Data Generator so you can test the Re-follow & Unfollow detection immediately
+    document.getElementById('demoBtn').addEventListener('click', () => {
+      const now = Math.floor(Date.now() / 1000);
+      // Seed a fake "previous snapshot" in localStorage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        savedAt: (now - 86400 * 7) * 1000,
+        followers: {
+          'sneaky_friend': { username: 'sneaky_friend', timestamp: now - 86400 * 120, href: 'https://www.instagram.com/sneaky_friend/' },
+          'ghost_unfollower': { username: 'ghost_unfollower', timestamp: now - 86400 * 60, href: 'https://www.instagram.com/ghost_unfollower/' },
+          'loyal_bestie': { username: 'loyal_bestie', timestamp: now - 86400 * 300, href: 'https://www.instagram.com/loyal_bestie/' }
+        },
+        following: {}
+      }));
+
+      // Simulate uploading a new snapshot where sneaky_friend unfollowed & re-followed 10 mins ago
+      const currentFollowers = {
+        'sneaky_friend': { username: 'sneaky_friend', timestamp: now - 600, href: 'https://www.instagram.com/sneaky_friend/' },
+        'loyal_bestie': { username: 'loyal_bestie', timestamp: now - 86400 * 300, href: 'https://www.instagram.com/loyal_bestie/' },
+        'brand_new_fan': { username: 'brand_new_fan', timestamp: now - 3600, href: 'https://www.instagram.com/brand_new_fan/' }
+      };
+      const currentFollowing = {
+        'sneaky_friend': { username: 'sneaky_friend', timestamp: now - 86400 * 120, href: 'https://www.instagram.com/sneaky_friend/' },
+        'loyal_bestie': { username: 'loyal_bestie', timestamp: now - 86400 * 300, href: 'https://www.instagram.com/loyal_bestie/' },
+        'celeb_account': { username: 'celeb_account', timestamp: now - 86400 * 15, href: 'https://www.instagram.com/celeb_account/' },
+        'ego_influencer': { username: 'ego_influencer', timestamp: now - 86400 * 5, href: 'https://www.instagram.com/ego_influencer/' }
+      };
+
+      runComparison(currentFollowers, currentFollowing);
+    });
+  </script>
+</body>
+</html>
