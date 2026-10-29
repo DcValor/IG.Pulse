@@ -3,59 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>IG Pulse — Unfollow & Re-follow Tracker</title>
+  <title>IG Pulse — Public ID & Export Non-Follower Tracker</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
-    body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: #0b1120; color: #f8fafc; font-family: system-ui, -apple-system, sans-serif; }
     .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; font-weight: 600; }
+    .mode-active { background-color: #0284c7; color: #ffffff; border-color: #38bdf8; }
   </style>
 </head>
 <body class="min-h-screen p-4 md:p-8 max-w-4xl mx-auto">
 
   <!-- Header -->
-  <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+  <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-800">
     <div>
       <h1 class="text-2xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">
         IG Pulse Tracker
       </h1>
-      <p class="text-sm text-slate-400 mt-1">
-        100% Local &bull; Tracks Non-Followers, Unfollowers &amp; Silent Re-follows
+      <p class="text-xs sm:text-sm text-slate-400 mt-1">
+        Primary: Who Doesn't Follow Back &bull; Add-ons: Silent Re-follows &amp; Unfollower History
       </p>
     </div>
-    <div class="flex gap-2">
-      <button id="demoBtn" class="px-3 py-2 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition">
-        Load Demo Data
+    <div class="flex flex-wrap gap-2">
+      <button id="demoBtn" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+        Try Demo Account
       </button>
-      <button id="clearBtn" class="px-3 py-2 text-xs font-medium bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 rounded-lg border border-rose-800/50 transition">
-        Clear Saved History
+      <button id="clearBtn" class="px-3 py-1.5 text-xs font-medium bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 rounded-lg border border-rose-800/50 transition">
+        Clear History
       </button>
     </div>
   </header>
 
-  <!-- Upload Box -->
-  <section class="my-6">
+  <!-- Input Mode Switcher -->
+  <div class="grid grid-cols-2 gap-2 my-5 bg-slate-900 p-1.5 rounded-xl border border-slate-800">
+    <button id="modeIdBtn" class="py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition mode-active">
+      ⚡ Public @Username Lookup
+    </button>
+    <button id="modeZipBtn" class="py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
+      📂 IG Export (.zip / .json)
+    </button>
+  </div>
+
+  <!-- MODE 1: Public Instagram ID Lookup -->
+  <section id="idLookupSection" class="mb-6 bg-slate-900/70 border border-slate-800 rounded-xl p-4 sm:p-5 space-y-4">
+    <div class="flex flex-col sm:flex-row gap-3">
+      <div class="relative flex-1">
+        <span class="absolute left-3.5 top-2.5 text-slate-400 font-semibold">@</span>
+        <input id="igUsernameInput" type="text" placeholder="enter_public_username"
+          class="w-full pl-8 pr-4 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-sm text-slate-100 focus:outline-none focus:border-sky-400" />
+      </div>
+      <button id="scanUsernameBtn" class="px-5 py-2.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-sm rounded-lg transition whitespace-nowrap">
+        Check Non-Followers
+      </button>
+    </div>
+
+    <!-- API Key & Instant Paste Accordion -->
+    <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-xs text-slate-400">
+      <button id="toggleApiConfigBtn" class="text-sky-400 hover:underline font-medium">
+        ⚙️ Configure Free RapidAPI Key (for direct @username scan)
+      </button>
+      <button id="toggleLivePasteBtn" class="text-indigo-400 hover:underline font-medium">
+        🚀 Or Use Keyless Instant Browser Paste (15 sec)
+      </button>
+    </div>
+
+    <!-- RapidAPI Configuration Drawer -->
+    <div id="apiConfigDrawer" class="hidden p-3.5 bg-slate-950 rounded-lg border border-slate-800 space-y-3 text-xs">
+      <p class="text-slate-300 leading-relaxed">
+        Because Instagram blocks direct browser requests even on public profiles, live <code>@username</code> lookup uses a free RapidAPI scraper key (stored only on your device).
+        Subscribe to the free tier of <strong>Instagram Scraper API2</strong> on RapidAPI and paste your key below:
+      </p>
+      <div class="grid sm:grid-cols-2 gap-2">
+        <input id="rapidApiKeyInput" type="password" placeholder="Paste X-RapidAPI-Key here..."
+          class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-400" />
+        <input id="rapidApiHostInput" type="text" value="instagram-scraper-api2.p.rapidapi.com"
+          class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-300 focus:outline-none focus:border-sky-400" />
+      </div>
+      <div class="flex justify-end">
+        <button id="saveApiBtn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sky-400 font-semibold rounded-md border border-slate-700">
+          Save Key Locally
+        </button>
+      </div>
+    </div>
+
+    <!-- Keyless Live Paste Drawer -->
+    <div id="livePasteDrawer" class="hidden p-3.5 bg-slate-950 rounded-lg border border-slate-800 space-y-3 text-xs">
+      <p class="text-slate-300 leading-relaxed">
+        <strong>Don't have an API key and don't want to wait for Instagram's email export?</strong>
+        Copy the script below, run it while logged into <code>instagram.com</code> in Chrome, and paste the output here:
+      </p>
+      <div class="flex gap-2">
+        <button id="copyScriptBtn" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-md">
+          1. Copy Instant IG Extractor Script
+        </button>
+      </div>
+      <textarea id="liveJsonPasteArea" rows="3" placeholder='2. Paste the JSON copied from Instagram here (`{"followers": [...], "following": [...]}`)...'
+        class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 font-mono text-[11px] focus:outline-none focus:border-indigo-400"></textarea>
+      <button id="processLivePasteBtn" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-md">
+        3. Analyze Pasted Lists Now
+      </button>
+    </div>
+
+    <!-- Progress Status -->
+    <div id="scanProgressBox" class="hidden p-3 rounded-lg bg-sky-950/40 border border-sky-800/60 text-xs text-sky-300 font-medium">
+      Scanning...
+    </div>
+  </section>
+
+  <!-- MODE 2: Upload Box (Existing ZIP/JSON Feature for Deep Timestamp Stats) -->
+  <section id="zipUploadSection" class="mb-6 hidden">
     <label for="fileInput" class="flex flex-col items-center justify-center w-full p-6 border-2 border-dashed border-slate-700 hover:border-sky-400 rounded-xl cursor-pointer bg-slate-900/60 transition">
       <div class="text-center">
         <p class="text-base font-medium text-slate-200">
           Drop your Instagram Export <span class="text-sky-400">.zip</span> (or <span class="text-sky-400">followers_1.json</span> + <span class="text-sky-400">following.json</span>)
         </p>
-        <p class="text-xs text-slate-400 mt-1" id="snapshotStatus">
-          No previous snapshot saved yet. First upload sets your baseline + shows recent follow timestamps.
+        <p class="text-xs text-slate-400 mt-1">
+          Best for exact follow timestamps &amp; catching silent unfollow + immediate re-follows.
         </p>
       </div>
       <input id="fileInput" type="file" multiple accept=".zip,.json" class="hidden" />
     </label>
   </section>
 
+  <!-- Snapshot Status Bar -->
+  <div class="mb-5 px-3.5 py-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-between text-xs text-slate-400">
+    <span id="snapshotStatus">Select a mode above to check who doesn't follow back.</span>
+    <span id="activeProfileBadge" class="font-semibold text-sky-400"></span>
+  </div>
+
   <!-- Summary Cards -->
   <section id="statsGrid" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 hidden">
-    <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-      <p class="text-xs text-slate-400">Don't Follow Back</p>
-      <p id="statNonFollowers" class="text-2xl font-bold text-amber-400 mt-1">0</p>
+    <div class="bg-slate-900 border-2 border-amber-500/40 p-4 rounded-xl">
+      <p class="text-xs font-semibold text-amber-300 uppercase tracking-wider">Don't Follow Back</p>
+      <p id="statNonFollowers" class="text-3xl font-extrabold text-amber-400 mt-1">0</p>
     </div>
     <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
-      <p class="text-xs text-slate-400">Re-followed (Silent)</p>
+      <p class="text-xs text-slate-400">Re-followed (Add-on)</p>
       <p id="statRefollowed" class="text-2xl font-bold text-purple-400 mt-1">0</p>
     </div>
     <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl">
@@ -73,10 +156,10 @@
     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 mb-4">
       <nav class="flex gap-4 overflow-x-auto text-sm text-slate-400">
         <button data-tab="nonFollowers" class="tab-btn pb-3 tab-active whitespace-nowrap">
-          Don't Follow Back
+          🎯 Don't Follow Back
         </button>
         <button data-tab="refollows" class="tab-btn pb-3 whitespace-nowrap">
-          Re-followed &amp; Recent Timestamps
+          Re-followed &amp; Timestamps
         </button>
         <button data-tab="unfollowed" class="tab-btn pb-3 whitespace-nowrap">
           Recent Unfollowers
@@ -85,7 +168,8 @@
           New Followers
         </button>
       </nav>
-      <input id="searchInput" type="text" placeholder="Search username..." class="px-3 py-1.5 mb-2 text-sm bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-400" />
+      <input id="searchInput" type="text" placeholder="Filter username..."
+        class="px-3 py-1.5 mb-2 text-sm bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-400" />
     </div>
 
     <!-- Info Banner per Tab -->
@@ -96,8 +180,11 @@
   </section>
 
   <script>
-    const STORAGE_KEY = 'ig_pulse_previous_snapshot_v1';
+    const API_KEY_STORAGE = 'ig_pulse_rapidapi_key';
+    const API_HOST_STORAGE = 'ig_pulse_rapidapi_host';
+    let currentProfileKey = 'export_default';
     let currentTab = 'nonFollowers';
+
     let analysisResults = {
       nonFollowers: [],
       refollowed: [],
@@ -106,27 +193,227 @@
       newFollowers: []
     };
 
-    const fileInput = document.getElementById('fileInput');
-    const snapshotStatus = document.getElementById('snapshotStatus');
-    const statsGrid = document.getElementById('statsGrid');
-    const mainContent = document.getElementById('mainContent');
-    const userList = document.getElementById('userList');
-    const tabBanner = document.getElementById('tabBanner');
-    const searchInput = document.getElementById('searchInput');
+    // Load saved RapidAPI settings
+    const rapidApiKeyInput = document.getElementById('rapidApiKeyInput');
+    const rapidApiHostInput = document.getElementById('rapidApiHostInput');
+    rapidApiKeyInput.value = localStorage.getItem(API_KEY_STORAGE) || '';
+    if (localStorage.getItem(API_HOST_STORAGE)) {
+      rapidApiHostInput.value = localStorage.getItem(API_HOST_STORAGE);
+    }
 
-    function updateSnapshotBanner() {
-      const saved = localStorage.getItem(STORAGE_KEY);
+    // Mode Switching
+    const modeIdBtn = document.getElementById('modeIdBtn');
+    const modeZipBtn = document.getElementById('modeZipBtn');
+    const idLookupSection = document.getElementById('idLookupSection');
+    const zipUploadSection = document.getElementById('zipUploadSection');
+
+    modeIdBtn.addEventListener('click', () => {
+      modeIdBtn.classList.add('mode-active');
+      modeIdBtn.classList.remove('text-slate-400');
+      modeZipBtn.classList.remove('mode-active');
+      modeZipBtn.classList.add('text-slate-400');
+      idLookupSection.classList.remove('hidden');
+      zipUploadSection.classList.add('hidden');
+    });
+
+    modeZipBtn.addEventListener('click', () => {
+      modeZipBtn.classList.add('mode-active');
+      modeZipBtn.classList.remove('text-slate-400');
+      modeIdBtn.classList.remove('mode-active');
+      modeIdBtn.classList.add('text-slate-400');
+      zipUploadSection.classList.remove('hidden');
+      idLookupSection.classList.add('hidden');
+    });
+
+    // Drawers
+    document.getElementById('toggleApiConfigBtn').addEventListener('click', () => {
+      document.getElementById('apiConfigDrawer').classList.toggle('hidden');
+      document.getElementById('livePasteDrawer').classList.add('hidden');
+    });
+    document.getElementById('toggleLivePasteBtn').addEventListener('click', () => {
+      document.getElementById('livePasteDrawer').classList.toggle('hidden');
+      document.getElementById('apiConfigDrawer').classList.add('hidden');
+    });
+
+    document.getElementById('saveApiBtn').addEventListener('click', () => {
+      localStorage.setItem(API_KEY_STORAGE, rapidApiKeyInput.value.trim());
+      localStorage.setItem(API_HOST_STORAGE, rapidApiHostInput.value.trim());
+      alert('RapidAPI credentials saved locally on your browser!');
+    });
+
+    function getStorageKey(profileKey) {
+      return `ig_pulse_snapshot_${profileKey.toLowerCase()}`;
+    }
+
+    function updateSnapshotBanner(profileKey = currentProfileKey) {
+      const saved = localStorage.getItem(getStorageKey(profileKey));
+      const statusEl = document.getElementById('snapshotStatus');
+      const badgeEl = document.getElementById('activeProfileBadge');
+      badgeEl.textContent = profileKey === 'export_default' ? 'Mode: File Export' : `@${profileKey}`;
+
       if (saved) {
         const parsed = JSON.parse(saved);
         const dateStr = new Date(parsed.savedAt).toLocaleString();
-        snapshotStatus.innerHTML = `Baseline saved from <strong class="text-sky-400">${dateStr}</strong> (${Object.keys(parsed.followers).length} followers). Upload a new export to compare!`;
+        statusEl.innerHTML = `Previous scan saved on <strong class="text-sky-400">${dateStr}</strong> (${Object.keys(parsed.followers).length} followers).`;
       } else {
-        snapshotStatus.textContent = 'No previous snapshot saved yet. First upload sets your baseline + shows recent follow timestamps.';
+        statusEl.textContent = 'No previous snapshot for this account yet. First scan sets your baseline.';
       }
     }
-    updateSnapshotBanner();
 
-    // Parse Instagram JSON structures across 2024-2026 formats
+    function setProgress(msg, show = true) {
+      const box = document.getElementById('scanProgressBox');
+      if (!show) {
+        box.classList.add('hidden');
+      } else {
+        box.classList.remove('hidden');
+        box.textContent = msg;
+      }
+    }
+
+    // ---------------------------------------------------------
+    // FEATURE 1: Direct @Username Public Lookup via RapidAPI
+    // ---------------------------------------------------------
+    async function fetchPaginatedRapidApi(endpointUrl, headers, maxPages = 15, label = 'items') {
+      const map = {};
+      let paginationToken = '';
+      let page = 1;
+      const nowSec = Math.floor(Date.now() / 1000);
+
+      while (page <= maxPages) {
+        setProgress(`Fetching ${label} (Page ${page})... ${Object.keys(map).length} loaded so far`);
+        const url = paginationToken ? `${endpointUrl}&pagination_token=${encodeURIComponent(paginationToken)}` : endpointUrl;
+        const res = await fetch(url, { headers });
+        if (!res.ok) {
+          throw new Error(`API returned status ${res.status}. Verify your RapidAPI key and ensure the account is public.`);
+        }
+        const data = await res.json();
+        const items = (data.data && (data.data.items || data.data.users)) || data.items || data.users || [];
+
+        for (const user of items) {
+          const uname = (user.username || '').trim().toLowerCase();
+          if (uname) {
+            map[uname] = {
+              username: uname,
+              fullName: user.full_name || '',
+              timestamp: nowSec,
+              href: `https://www.instagram.com/${uname}/`
+            };
+          }
+        }
+
+        paginationToken = data.pagination_token || (data.data && data.data.pagination_token) || data.next_max_id || '';
+        if (!paginationToken || items.length === 0) break;
+        page++;
+      }
+      return map;
+    }
+
+    document.getElementById('scanUsernameBtn').addEventListener('click', async () => {
+      const rawUser = document.getElementById('igUsernameInput').value.trim().replace(/^@/, '').toLowerCase();
+      if (!rawUser) {
+        alert('Please enter a public Instagram username first.');
+        return;
+      }
+
+      const apiKey = localStorage.getItem(API_KEY_STORAGE) || rapidApiKeyInput.value.trim();
+      const apiHost = localStorage.getItem(API_HOST_STORAGE) || rapidApiHostInput.value.trim();
+
+      if (!apiKey) {
+        document.getElementById('apiConfigDrawer').classList.remove('hidden');
+        alert('To scan by @username directly, please paste your free RapidAPI key in the configuration box, OR use the Keyless Instant Browser Paste option right next to it.');
+        return;
+      }
+
+      currentProfileKey = rawUser;
+      const headers = {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': apiHost
+      };
+
+      try {
+        setProgress(`Looking up public profile @${rawUser}...`, true);
+        const followingUrl = `https://${apiHost}/v1/following?username_or_id_or_url=${encodeURIComponent(rawUser)}`;
+        const followersUrl = `https://${apiHost}/v1/followers?username_or_id_or_url=${encodeURIComponent(rawUser)}`;
+
+        const followingMap = await fetchPaginatedRapidApi(followingUrl, headers, 20, 'Following list');
+        const followersMap = await fetchPaginatedRapidApi(followersUrl, headers, 30, 'Followers list');
+
+        setProgress('', false);
+        if (Object.keys(followingMap).length === 0 && Object.keys(followersMap).length === 0) {
+          alert('No users returned. Check that this account is Public and your RapidAPI endpoint is active.');
+          return;
+        }
+
+        runComparison(followersMap, followingMap, rawUser);
+      } catch (err) {
+        setProgress('', false);
+        alert(`Username Scan Error: ${err.message}`);
+      }
+    });
+
+    // ---------------------------------------------------------
+    // FEATURE 1B: Keyless 15-Second Live Browser Script & Paste
+    // ---------------------------------------------------------
+    const LIVE_EXTRACTOR_SCRIPT = `(async () => {
+  console.log("⚡ IG Pulse Live Scanner started...");
+  const appId = "936619743392459";
+  const uname = window.location.pathname.split("/").filter(Boolean)[0];
+  if (!uname) return alert("Open your Instagram profile page first (e.g. instagram.com/your_username) then run this!");
+  const profRes = await fetch(\`https://www.instagram.com/api/v1/users/web_profile_info/?username=\${uname}\`, { headers: { "x-ig-app-id": appId } });
+  const profJson = await profRes.json();
+  const userId = profJson.data.user.id;
+  async function grabList(type) {
+    let list = [], maxId = "";
+    while (true) {
+      const url = \`https://www.instagram.com/api/v1/friendships/\${userId}/\${type}/?count=100\${maxId ? "&max_id=" + maxId : ""}\`;
+      const r = await fetch(url, { headers: { "x-ig-app-id": appId } });
+      const d = await r.json();
+      if (d.users) list.push(...d.users.map(u => u.username));
+      console.log(\`Loaded \${list.length} \${type}...\`);
+      if (!d.next_max_id) break;
+      maxId = d.next_max_id;
+    }
+    return list;
+  }
+  const following = await grabList("following");
+  const followers = await grabList("followers");
+  const payload = JSON.stringify({ username: uname, following, followers });
+  await navigator.clipboard.writeText(payload);
+  alert(\`✅ Done! Copied \${following.length} following & \${followers.length} followers to clipboard. Paste it into IG Pulse!\`);
+})();`;
+
+    document.getElementById('copyScriptBtn').addEventListener('click', async () => {
+      await navigator.clipboard.writeText(LIVE_EXTRACTOR_SCRIPT);
+      alert('Copied! Open your profile on instagram.com in Chrome desktop/console, paste & run it, then paste the result below.');
+    });
+
+    document.getElementById('processLivePasteBtn').addEventListener('click', () => {
+      try {
+        const raw = document.getElementById('liveJsonPasteArea').value.trim();
+        const parsed = JSON.parse(raw);
+        const nowSec = Math.floor(Date.now() / 1000);
+        const followersMap = {};
+        const followingMap = {};
+
+        (parsed.followers || []).forEach(u => {
+          const uname = String(u).toLowerCase();
+          followersMap[uname] = { username: uname, timestamp: nowSec, href: `https://www.instagram.com/${uname}/` };
+        });
+        (parsed.following || []).forEach(u => {
+          const uname = String(u).toLowerCase();
+          followingMap[uname] = { username: uname, timestamp: nowSec, href: `https://www.instagram.com/${uname}/` };
+        });
+
+        const profileKey = (parsed.username || document.getElementById('igUsernameInput').value.trim() || 'live_scan').replace(/^@/, '').toLowerCase();
+        runComparison(followersMap, followingMap, profileKey);
+      } catch (e) {
+        alert('Invalid JSON pasted. Make sure you pasted the exact output from the extractor script.');
+      }
+    });
+
+    // ---------------------------------------------------------
+    // FEATURE 2: Official Instagram ZIP / JSON Export Parser
+    // ---------------------------------------------------------
     function extractEntries(jsonData) {
       let rawList = [];
       if (Array.isArray(jsonData)) {
@@ -166,9 +453,7 @@
       for (const file of files) {
         if (file.name.endsWith('.zip')) {
           const zip = await JSZip.loadAsync(file);
-          const zipFiles = Object.keys(zip.files);
-
-          for (const path of zipFiles) {
+          for (const path of Object.keys(zip.files)) {
             const lower = path.toLowerCase();
             if (lower.endsWith('.json') && lower.includes('followers_and_following/')) {
               const fileName = lower.split('/').pop();
@@ -194,25 +479,30 @@
       }
 
       if (Object.keys(followersMap).length === 0 && Object.keys(followingMap).length === 0) {
-        alert('Could not find followers_1.json or following.json inside the uploaded file(s). Make sure you exported in JSON format!');
+        alert('Could not find followers_1.json or following.json inside the uploaded file(s).');
         return;
       }
 
-      runComparison(followersMap, followingMap);
+      runComparison(followersMap, followingMap, 'export_default');
     }
 
-    function runComparison(followersMap, followingMap) {
-      const prevRaw = localStorage.getItem(STORAGE_KEY);
+    // ---------------------------------------------------------
+    // UNIFIED COMPARISON ENGINE (Works for Both ID & Export)
+    // ---------------------------------------------------------
+    function runComparison(followersMap, followingMap, profileKey = 'export_default') {
+      currentProfileKey = profileKey;
+      const storageKey = getStorageKey(profileKey);
+      const prevRaw = localStorage.getItem(storageKey);
       const prevSnapshot = prevRaw ? JSON.parse(prevRaw) : null;
 
-      // 1. Who doesn't follow back
+      // 1. PRIMARY: Who doesn't follow back
       const nonFollowers = Object.values(followingMap)
         .filter(u => !followersMap[u.username])
-        .sort((a, b) => b.timestamp - a.timestamp);
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
-      // 2. All current followers sorted by newest timestamp first
+      // 2. ADD-ON: All current followers sorted by newest timestamp
       const recentFollowersAll = Object.values(followersMap)
-        .sort((a, b) => b.timestamp - a.timestamp);
+        .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
       const refollowed = [];
       const unfollowed = [];
@@ -221,23 +511,20 @@
       if (prevSnapshot && prevSnapshot.followers) {
         const oldFollowers = prevSnapshot.followers;
 
-        // Check for Unfollowers (in old, not in current)
         for (const [uname, oldData] of Object.entries(oldFollowers)) {
           if (!followersMap[uname]) {
             unfollowed.push({
               ...oldData,
-              note: `Followed you on ${formatDate(oldData.timestamp)} • Unfollowed since last scan`
+              note: `Was following you in previous scan • Unfollowed since then`
             });
           }
         }
 
-        // Check for New Followers vs Silent Re-followers
         for (const [uname, currData] of Object.entries(followersMap)) {
           const oldData = oldFollowers[uname];
           if (!oldData) {
             newFollowers.push(currData);
-          } else if (currData.timestamp > oldData.timestamp) {
-            // SAME follower, NEWER timestamp = Unfollowed and Followed Back!
+          } else if (currData.timestamp && oldData.timestamp && currData.timestamp > oldData.timestamp && profileKey === 'export_default') {
             refollowed.push({
               ...currData,
               oldTimestamp: oldData.timestamp,
@@ -247,10 +534,6 @@
         }
       }
 
-      // Sort diffs
-      refollowed.sort((a, b) => b.timestamp - a.timestamp);
-      newFollowers.sort((a, b) => b.timestamp - a.timestamp);
-
       analysisResults = {
         nonFollowers,
         refollowed,
@@ -259,27 +542,27 @@
         newFollowers
       };
 
-      // Save new snapshot
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      // Save updated snapshot per account
+      localStorage.setItem(storageKey, JSON.stringify({
         savedAt: Date.now(),
         followers: followersMap,
         following: followingMap
       }));
-      updateSnapshotBanner();
+      updateSnapshotBanner(profileKey);
 
-      // Update UI Counters
+      // Update Counters
       document.getElementById('statNonFollowers').textContent = nonFollowers.length;
       document.getElementById('statRefollowed').textContent = refollowed.length;
       document.getElementById('statUnfollowed').textContent = unfollowed.length;
       document.getElementById('statNewFollowers').textContent = newFollowers.length;
 
-      statsGrid.classList.remove('hidden');
-      mainContent.classList.remove('hidden');
+      document.getElementById('statsGrid').classList.remove('hidden');
+      document.getElementById('mainContent').classList.remove('hidden');
       renderList();
     }
 
     function formatDate(unixSeconds) {
-      if (!unixSeconds) return 'Unknown date';
+      if (!unixSeconds) return 'Live Scan';
       return new Date(unixSeconds * 1000).toLocaleString(undefined, {
         year: 'numeric', month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit'
@@ -287,30 +570,32 @@
     }
 
     function renderList() {
-      const query = searchInput.value.trim().toLowerCase();
+      const query = document.getElementById('searchInput').value.trim().toLowerCase();
+      const userList = document.getElementById('userList');
+      const tabBanner = document.getElementById('tabBanner');
       userList.innerHTML = '';
 
       let items = [];
       if (currentTab === 'nonFollowers') {
-        tabBanner.innerHTML = `Accounts you follow that do not follow you back. Sorted by who you followed most recently.`;
+        tabBanner.innerHTML = `<strong class="text-amber-400">Primary View:</strong> Accounts that <strong>@${currentProfileKey}</strong> follows, but they do <strong>not</strong> follow back (${analysisResults.nonFollowers.length} total).`;
         items = analysisResults.nonFollowers;
       } else if (currentTab === 'refollows') {
-        tabBanner.innerHTML = `<strong class="text-purple-400">Silent Re-follow Detector:</strong> Anyone caught unfollowing &amp; re-following between snapshots is highlighted in purple at the top. Below that are all your followers sorted by their most recent follow timestamp—if an old mutual has a brand-new date here, they unfollowed and re-followed you on that date.`;
+        tabBanner.innerHTML = `<strong class="text-purple-400">Add-on — Silent Re-follow Detector:</strong> Shows accounts whose follow timestamp reset between file exports, followed by all followers sorted by newest timestamp.`;
         const caughtSet = new Set(analysisResults.refollowed.map(u => u.username));
         const remainingRecent = analysisResults.recentFollowersAll.filter(u => !caughtSet.has(u.username));
         items = [...analysisResults.refollowed, ...remainingRecent];
       } else if (currentTab === 'unfollowed') {
-        tabBanner.innerHTML = `Accounts that were following you in your previous snapshot but are missing now.`;
+        tabBanner.innerHTML = `<strong class="text-rose-400">Add-on — Recent Unfollowers:</strong> Accounts that were following in your last scan of <strong>@${currentProfileKey}</strong> but are gone now.`;
         items = analysisResults.unfollowed;
       } else if (currentTab === 'newFollowers') {
-        tabBanner.innerHTML = `Brand-new followers since your previous saved snapshot.`;
+        tabBanner.innerHTML = `<strong class="text-emerald-400">Add-on — New Followers:</strong> Brand-new followers detected since your previous scan of <strong>@${currentProfileKey}</strong>.`;
         items = analysisResults.newFollowers;
       }
 
       const filtered = items.filter(item => item.username.includes(query));
 
       if (filtered.length === 0) {
-        userList.innerHTML = `<div class="p-8 text-center text-slate-500 text-sm">No accounts found in this category.</div>`;
+        userList.innerHTML = `<div class="p-8 text-center text-slate-500 text-sm">No accounts found in this tab.</div>`;
         return;
       }
 
@@ -323,26 +608,27 @@
 
         let subtext = '';
         if (isRefollow) {
-          subtext = `<span class="text-purple-300 font-medium">Caught Re-follow!</span> Old follow: ${formatDate(user.oldTimestamp)} &rarr; New follow: ${formatDate(user.timestamp)}`;
+          subtext = `<span class="text-purple-300 font-medium">Caught Re-follow!</span> Old: ${formatDate(user.oldTimestamp)} &rarr; New: ${formatDate(user.timestamp)}`;
         } else if (user.note) {
           subtext = user.note;
         } else if (currentTab === 'nonFollowers') {
-          subtext = `You followed on ${formatDate(user.timestamp)}`;
+          subtext = `Doesn't follow back • Checked: ${formatDate(user.timestamp)}`;
         } else {
-          subtext = `Followed you on ${formatDate(user.timestamp)}`;
+          subtext = `Timestamp: ${formatDate(user.timestamp)}`;
         }
 
         row.innerHTML = `
           <div>
             <div class="flex items-center gap-2">
               <span class="font-semibold text-slate-100">@${user.username}</span>
+              ${user.fullName ? `<span class="text-xs text-slate-400">(${user.fullName})</span>` : ''}
               ${isRefollow ? '<span class="px-2 py-0.5 text-[10px] uppercase tracking-wider font-bold bg-purple-600 text-white rounded-full">Re-followed</span>' : ''}
             </div>
             <p class="text-xs text-slate-400 mt-0.5">${subtext}</p>
           </div>
           <a href="${user.href}" target="_blank" rel="noopener noreferrer"
-             class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-200 rounded-lg transition">
-            View Profile &nearr;
+             class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-200 rounded-lg transition whitespace-nowrap">
+            Profile &nearr;
           </a>
         `;
         userList.appendChild(row);
@@ -350,11 +636,11 @@
     }
 
     // Event Listeners
-    fileInput.addEventListener('change', (e) => {
+    document.getElementById('fileInput').addEventListener('change', (e) => {
       if (e.target.files.length) handleFiles(e.target.files);
     });
 
-    searchInput.addEventListener('input', renderList);
+    document.getElementById('searchInput').addEventListener('input', renderList);
 
     document.querySelectorAll('.tab-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -366,39 +652,41 @@
     });
 
     document.getElementById('clearBtn').addEventListener('click', () => {
-      localStorage.removeItem(STORAGE_KEY);
-      updateSnapshotBanner();
-      alert('Saved baseline history cleared.');
+      localStorage.removeItem(getStorageKey(currentProfileKey));
+      updateSnapshotBanner(currentProfileKey);
+      alert(`Cleared saved snapshot history for @${currentProfileKey}.`);
     });
 
-    // Demo Data Generator so you can test the Re-follow & Unfollow detection immediately
+    // Demo Button (Simulates scanning a public @username account)
     document.getElementById('demoBtn').addEventListener('click', () => {
+      const demoUser = document.getElementById('igUsernameInput').value.trim().replace(/^@/, '') || 'demo_public_user';
+      document.getElementById('igUsernameInput').value = demoUser;
       const now = Math.floor(Date.now() / 1000);
-      // Seed a fake "previous snapshot" in localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        savedAt: (now - 86400 * 7) * 1000,
+
+      localStorage.setItem(getStorageKey(demoUser), JSON.stringify({
+        savedAt: (now - 86400 * 5) * 1000,
         followers: {
-          'sneaky_friend': { username: 'sneaky_friend', timestamp: now - 86400 * 120, href: 'https://www.instagram.com/sneaky_friend/' },
-          'ghost_unfollower': { username: 'ghost_unfollower', timestamp: now - 86400 * 60, href: 'https://www.instagram.com/ghost_unfollower/' },
-          'loyal_bestie': { username: 'loyal_bestie', timestamp: now - 86400 * 300, href: 'https://www.instagram.com/loyal_bestie/' }
+          'sneaky_mutual': { username: 'sneaky_mutual', timestamp: now - 86400 * 90, href: 'https://www.instagram.com/sneaky_mutual/' },
+          'ex_follower_01': { username: 'ex_follower_01', timestamp: now - 86400 * 40, href: 'https://www.instagram.com/ex_follower_01/' },
+          'real_friend': { username: 'real_friend', timestamp: now - 86400 * 200, href: 'https://www.instagram.com/real_friend/' }
         },
         following: {}
       }));
 
-      // Simulate uploading a new snapshot where sneaky_friend unfollowed & re-followed 10 mins ago
       const currentFollowers = {
-        'sneaky_friend': { username: 'sneaky_friend', timestamp: now - 600, href: 'https://www.instagram.com/sneaky_friend/' },
-        'loyal_bestie': { username: 'loyal_bestie', timestamp: now - 86400 * 300, href: 'https://www.instagram.com/loyal_bestie/' },
-        'brand_new_fan': { username: 'brand_new_fan', timestamp: now - 3600, href: 'https://www.instagram.com/brand_new_fan/' }
+        'sneaky_mutual': { username: 'sneaky_mutual', timestamp: now - 300, href: 'https://www.instagram.com/sneaky_mutual/' },
+        'real_friend': { username: 'real_friend', timestamp: now - 86400 * 200, href: 'https://www.instagram.com/real_friend/' },
+        'new_fan_99': { username: 'new_fan_99', timestamp: now - 1800, href: 'https://www.instagram.com/new_fan_99/' }
       };
       const currentFollowing = {
-        'sneaky_friend': { username: 'sneaky_friend', timestamp: now - 86400 * 120, href: 'https://www.instagram.com/sneaky_friend/' },
-        'loyal_bestie': { username: 'loyal_bestie', timestamp: now - 86400 * 300, href: 'https://www.instagram.com/loyal_bestie/' },
-        'celeb_account': { username: 'celeb_account', timestamp: now - 86400 * 15, href: 'https://www.instagram.com/celeb_account/' },
-        'ego_influencer': { username: 'ego_influencer', timestamp: now - 86400 * 5, href: 'https://www.instagram.com/ego_influencer/' }
+        'sneaky_mutual': { username: 'sneaky_mutual', timestamp: now - 86400 * 90, href: 'https://www.instagram.com/sneaky_mutual/' },
+        'real_friend': { username: 'real_friend', timestamp: now - 86400 * 200, href: 'https://www.instagram.com/real_friend/' },
+        'verified_celeb': { username: 'verified_celeb', fullName: 'Verified Star', timestamp: now - 86400 * 30, href: 'https://www.instagram.com/verified_celeb/' },
+        'one_sided_follow': { username: 'one_sided_follow', fullName: 'Never Followed Back', timestamp: now - 86400 * 12, href: 'https://www.instagram.com/one_sided_follow/' },
+        'brand_page_official': { username: 'brand_page_official', fullName: 'Brand Page', timestamp: now - 86400 * 4, href: 'https://www.instagram.com/brand_page_official/' }
       };
 
-      runComparison(currentFollowers, currentFollowing);
+      runComparison(currentFollowers, currentFollowing, demoUser);
     });
   </script>
 </body>
